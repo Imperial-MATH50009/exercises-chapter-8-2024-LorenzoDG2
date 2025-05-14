@@ -3,6 +3,7 @@
 import pandas as pd
 import os
 import time
+from datetime import datetime
 
 
 def read_data(filename):
@@ -16,7 +17,7 @@ submissions = read_data("submissions.csv")
 git_names = read_data("gitnames.csv")
 
 # Create a mapping from Imperial usernames to GitHub names.
-name_map = {imperial: git
+name_map = {imperial.lower(): git
             for imperial, git in zip(git_names["ImperialID"],
                                      git_names["GitHubID"])}
 
@@ -29,14 +30,27 @@ submissions_map = {
 # For each student in the class, find their submission time.
 submission_times = [submissions_map.get(name_map.get(id.lower()))
                     for id in class_list["Username"]]
-submission_times = pd.Series(submission_times, name="SubmissionTimes")
 
-late = [time.strptime(t, '%H:%M:%S') > time.strptime('14:40:00', '%H:%M:%S')
-        for t in submission_times]
+parsed_times = []
+for t in submission_times:
+    if isinstance(t, str) and t:
+        clean_time = t.split('+')[0]  # remove timezone
+        parsed_times.append(datetime.strptime(clean_time, '%H:%M:%S'))
+    else:
+        parsed_times.append(None)
 
-report = pd.DataFrame([class_list["FirstName"],
-                       class_list["Surname"],
-                       class_list["Username"],
-                       submission_times])
+# Define cutoff time
+cutoff_time = datetime.strptime('14:40:00', '%H:%M:%S')
+
+# Determine late submissions
+late = [(t is not None and t > cutoff_time) for t in parsed_times]
+
+report = pd.DataFrame({
+    "FirstName": class_list["FirstName"],
+    "SurName": class_list["Surname"],
+    "UserName": class_list["Username"],
+    "SubmissionTime": submission_times,
+    "Late": late
+})
 
 print("Report complete.")
